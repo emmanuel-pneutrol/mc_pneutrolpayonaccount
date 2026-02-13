@@ -4,7 +4,7 @@ includes:
 parameters:
   paths:
     # From PHPStan 0.12, paths to check are relative to the neon file
-    - ../../ps_checkpayment.php
+    - ../../mc_pneutrolpayonaccount.php
     - ../../controllers/
     - ../../upgrade/
   ignoreErrors:

@@ -27,7 +27,7 @@
 /**
  * @since 1.5.0
  */
-class Ps_CheckpaymentPaymentModuleFrontController extends ModuleFrontController
+class Mc_PneutrolpayonaccountPaymentModuleFrontController extends ModuleFrontController
 {
     public $ssl = true;
 
@@ -38,7 +38,7 @@ class Ps_CheckpaymentPaymentModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        if (!($this->module instanceof Ps_Checkpayment)) {
+        if (!($this->module instanceof Mc_Pneutrolpayonaccount)) {
             Tools::redirect('index.php?controller=order');
 
             return;
@@ -50,19 +50,42 @@ class Ps_CheckpaymentPaymentModuleFrontController extends ModuleFrontController
             return;
         }
 
+        $poNumber = Tools::getValue('poNumber', '___________');
+
+        $customerId = (int) $this->context->customer->id;
+
+        $row = $this->getCustomerCompanyRow($customerId);
+
         $this->context->smarty->assign([
             'nbProducts' => $cart->nbProducts(),
             'cust_currency' => $cart->id_currency,
             'currencies' => $this->module->getCurrency((int) $cart->id_currency),
             'total' => $cart->getOrderTotal(true, Cart::BOTH),
             'isoCode' => $this->context->language->iso_code,
-            'checkName' => $this->module->checkName,
-            'checkAddress' => Tools::nl2br($this->module->address),
+            'accountName' => $row['company_name'] ?? '',
+            'poNumber' => $poNumber,
             'this_path' => $this->module->getPathUri(),
             'this_path_check' => $this->module->getPathUri(),
             'this_path_ssl' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . 'modules/' . $this->module->name . '/',
         ]);
 
         $this->setTemplate('payment_execution.tpl');
+    }
+
+    private function getCustomerCompanyRow(int $idCustomer): ?array
+    {
+        $idShop = (int) ($this->context->shop->id ?? 0);
+        if ($idShop <= 0) {
+            $idShop = (int) Configuration::get('PS_SHOP_DEFAULT');
+        }
+
+        $sql = 'SELECT is_company, company_name, company_vat
+                FROM `' . _DB_PREFIX_ . 'pneutrolaccountholder_customer`
+                WHERE id_customer = ' . (int) $idCustomer . '
+                AND id_shop = ' . (int) $idShop;
+
+        $row = Db::getInstance()->getRow($sql);
+
+        return is_array($row) ? $row : null;
     }
 }

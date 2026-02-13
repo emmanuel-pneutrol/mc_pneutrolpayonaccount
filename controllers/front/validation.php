@@ -27,15 +27,17 @@
 /**
  * @since 1.5.0
  */
-class Ps_CheckpaymentValidationModuleFrontController extends ModuleFrontController
+class Mc_PneutrolpayonaccountValidationModuleFrontController extends ModuleFrontController
 {
     public function postProcess()
     {
-        if (!($this->module instanceof Ps_Checkpayment)) {
+        if (!($this->module instanceof Mc_Pneutrolpayonaccount)) {
             Tools::redirect('index.php?controller=order&step=1');
 
             return;
         }
+
+        $poNumber = Tools::getValue('poNumber', '___________');
 
         $cart = $this->context->cart;
 
@@ -48,14 +50,14 @@ class Ps_CheckpaymentValidationModuleFrontController extends ModuleFrontControll
         // Check that this payment option is still available in case the customer changed his address just before the end of the checkout process
         $authorized = false;
         foreach (Module::getPaymentModules() as $module) {
-            if ($module['name'] == 'ps_checkpayment') {
+            if ($module['name'] == 'mc_pneutrolpayonaccount') {
                 $authorized = true;
                 break;
             }
         }
 
         if (!$authorized) {
-            exit($this->trans('This payment method is not available.', [], 'Modules.Checkpayment.Shop'));
+            exit($this->trans('This payment method is not available.', [], 'Modules.Mc_pneutrolpayonaccount.Shop'));
         }
 
         $customer = new Customer($cart->id_customer);
@@ -66,25 +68,50 @@ class Ps_CheckpaymentValidationModuleFrontController extends ModuleFrontControll
             return;
         }
 
+        //Get Account name from customer account holder table
+        $row = $this->getCustomerCompanyRow($customer->id);
+        if ($row) {
+            $accountName = $row['company_name'];
+        } else {
+            $accountName = Configuration::get('ACCOUNT_NAME');
+        }
+
         $currency = $this->context->currency;
         $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
 
         $mailVars = [
-            '{check_name}' => Configuration::get('CHEQUE_NAME'),
-            '{check_address}' => Configuration::get('CHEQUE_ADDRESS'),
-            '{check_address_html}' => str_replace("\n", '<br />', Configuration::get('CHEQUE_ADDRESS')), ];
+            '{account_name}' => $accountName,
+            '{po_number}' => $poNumber,
+            '{po_number_html}' => str_replace("\n", '<br />', $poNumber), ];
 
         $this->module->validateOrder(
             (int) $cart->id,
             (int) Configuration::get('PS_OS_CHEQUE'),
             $total,
             $this->module->displayName,
-            null,
+            'PO Number: ' . pSQL($poNumber),
             $mailVars,
             (int) $currency->id,
             false,
             $customer->secure_key
         );
         Tools::redirect('index.php?controller=order-confirmation&id_cart=' . (int) $cart->id . '&id_module=' . (int) $this->module->id . '&id_order=' . $this->module->currentOrder . '&key=' . $customer->secure_key);
+    }
+
+    private function getCustomerCompanyRow(int $idCustomer): ?array
+    {
+        $idShop = (int) ($this->context->shop->id ?? 0);
+        if ($idShop <= 0) {
+            $idShop = (int) Configuration::get('PS_SHOP_DEFAULT');
+        }
+
+        $sql = 'SELECT is_company, company_name, company_vat
+                FROM `' . _DB_PREFIX_ . 'pneutrolaccountholder_customer`
+                WHERE id_customer = ' . (int) $idCustomer . '
+                AND id_shop = ' . (int) $idShop;
+
+        $row = Db::getInstance()->getRow($sql);
+
+        return is_array($row) ? $row : null;
     }
 }

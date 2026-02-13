@@ -24,14 +24,74 @@
  *}
 
 <section>
-  <p>{l s='Please send us your check following these rules:' d='Modules.Checkpayment.Shop'}
+  <p>{l s='Please send us your check following these rules:' d='Modules.Mc_pneutrolpayonaccount.Shop'}
     <dl>
-      <dt>{l s='Amount' d='Modules.Checkpayment.Shop'}</dt>
+      <dt>{l s='Amount' d='Modules.Mc_pneutrolpayonaccount.Shop'}</dt>
       <dd>{$checkTotal} {$checkTaxLabel}</dd>
-      <dt>{l s='Payee' d='Modules.Checkpayment.Shop'}</dt>
-      <dd>{$checkOrder}</dd>
-      <dt>{l s='Send your check to this address' d='Modules.Checkpayment.Shop'}</dt>
-      <dd>{$checkAddress nofilter}</dd>
+      <dt>{l s='Account Name' d='Modules.Mc_pneutrolpayonaccount.Shop'}</dt>
+      <dd>{$accountName}</dd>
+      <dt>{l s='PO Number (if applicable)' d='Modules.Mc_pneutrolpayonaccount.Shop'}</dt>
+      <dd>
+{*        {$poNumber nofilter}*}
+        <input
+          type="text"
+          name="poNumberVis"
+          id="poNumberVis"
+          class="form-control"
+          value="{$poNumber|escape:'htmlall':'UTF-8'}"
+          autocomplete="off"
+        >
+        <small class="form-text text-muted">
+          {l s='This will be added to the order/payment details.' d='Modules.Mc_pneutrolpayonaccount.Shop'}
+        </small>
+      </dd>
     </dl>
   </p>
 </section>
+{literal}
+  <script>
+    (function () {
+      function findHiddenPoInput() {
+        // The checkout typically renders PaymentOption inputs as <input name="poNumber" ...>
+        return document.querySelector('input[type="hidden"][name="poNumber"]');
+      }
+
+      function syncPoNumber() {
+        var visible = document.getElementById('poNumberVis');
+        if (!visible) return;
+
+        var hidden = findHiddenPoInput();
+        if (!hidden) return;
+
+        hidden.value = visible.value || '';
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var visible = document.getElementById('poNumberVis');
+        if (!visible) return;
+
+        // Sync on typing
+        visible.addEventListener('input', syncPoNumber);
+        visible.addEventListener('change', syncPoNumber);
+
+        // Also sync when customer selects a payment option (themes differ)
+        document.addEventListener('change', function (e) {
+          var t = e.target;
+          if (!t) return;
+          // Common selectors for payment method radios
+          if (t.matches('input[type="radio"][name="payment-option"], input[type="radio"][name="payment-option-id"]')) {
+            syncPoNumber();
+          }
+        });
+
+        // Initial sync (in case value is prefilled)
+        syncPoNumber();
+      });
+
+      // Extra safety: before any form submit, ensure hidden has latest value
+      document.addEventListener('submit', function () {
+        syncPoNumber();
+      }, true);
+    })();
+  </script>
+{/literal}

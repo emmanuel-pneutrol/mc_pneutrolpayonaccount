@@ -24,8 +24,8 @@
  *}
 
 <p class="payment_module">
-	<a href="{$link->getModuleLink('ps_checkpayment', 'payment', [], true)|escape:'html'}">
-		<img src="{$this_path_ps_checkpayment}logo.png" alt="{l s='Pay by check' d='Modules.Checkpayment.Shop'}" />
-		{l s='Pay by check' d='Modules.Checkpayment.Shop'} {l s='(order processing will be longer)' d='Modules.Checkpayment.Shop'}
+	<a href="{$link->getModuleLink('mc_pneutrolpayonaccount', 'payment', [], true)|escape:'html'}">
+		<img src="{$this_path_mc_pneutrolpayonaccount}logo.png" alt="{l s='Pay on account' d='Modules.Mc_pneutrolpayonaccount.Shop'}" />
+		{l s='Pay on Account' d='Modules.Mc_pneutrolpayonaccount.Shop'} {l s='(order processing will be longer)' d='Modules.Mc_pneutrolpayonaccount.Shop'}
 	</a>
 </p>

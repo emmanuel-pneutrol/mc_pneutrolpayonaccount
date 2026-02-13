@@ -30,53 +30,53 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-class Ps_Checkpayment extends PaymentModule
+class Mc_Pneutrolpayonaccount extends PaymentModule
 {
     private $_html = '';
     private $_postErrors = [];
 
-    public $checkName;
-    public $address;
+    public $accountName;
+    public $poNumber;
     public $extra_mail_vars;
 
     public function __construct()
     {
-        $this->name = 'ps_checkpayment';
+        $this->name = 'mc_pneutrolpayonaccount';
         $this->tab = 'payments_gateways';
         $this->version = '2.1.0';
-        $this->author = 'PrestaShop';
+        $this->author = 'PrestaShop | Extended by EI';
         $this->controllers = ['payment', 'validation'];
 
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
 
-        $config = Configuration::getMultiple(['CHEQUE_NAME', 'CHEQUE_ADDRESS']);
-        if (isset($config['CHEQUE_NAME'])) {
-            $this->checkName = $config['CHEQUE_NAME'];
+        $config = Configuration::getMultiple(['ACCOUNT_NAME', 'PO_NUMBER']);
+        if (isset($config['ACCOUNT_NAME'])) {
+            $this->accountName = $config['ACCOUNT_NAME'];
         }
-        if (isset($config['CHEQUE_ADDRESS'])) {
-            $this->address = $config['CHEQUE_ADDRESS'];
+        if (isset($config['PO_NUMBER'])) {
+            $this->poNumber = $config['PO_NUMBER'];
         }
 
         $this->bootstrap = true;
         parent::__construct();
 
-        $this->displayName = $this->trans('Payments by check', [], 'Modules.Checkpayment.Admin');
-        $this->description = $this->trans('Display contact details blocks to make it easy for customers to pay by check on your store.', [], 'Modules.Checkpayment.Admin');
-        $this->confirmUninstall = $this->trans('Are you sure you want to delete these details?', [], 'Modules.Checkpayment.Admin');
+        $this->displayName = $this->trans('Payments on Account', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
+        $this->description = $this->trans('Display contact details blocks to make it easy for customers to pay by account on your store.', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
+        $this->confirmUninstall = $this->trans('Are you sure you want to delete these details?', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
         $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => _PS_VERSION_];
 
-        if ((!isset($this->checkName) || !isset($this->address) || empty($this->checkName) || empty($this->address)) && $this->active) {
-            $this->warning = $this->trans('The "Payee" and "Address" fields must be configured before using this module.', [], 'Modules.Checkpayment.Admin');
+        if ((!isset($this->accountName) || !isset($this->poNumber) || empty($this->accountName) || empty($this->poNumber)) && $this->active) {
+            $this->warning = $this->trans('The "Account" and "PO Number" fields must be configured before using this module.', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
         }
         if (!count(Currency::checkPaymentCurrencies($this->id)) && $this->active) {
-            $this->warning = $this->trans('No currency has been set for this module.', [], 'Modules.Checkpayment.Admin');
+            $this->warning = $this->trans('No currency has been set for this module.', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
         }
 
         $this->extra_mail_vars = [
-            '{check_name}' => Configuration::get('CHEQUE_NAME'),
-            '{check_address}' => Configuration::get('CHEQUE_ADDRESS'),
-            '{check_address_html}' => Tools::nl2br(Configuration::get('CHEQUE_ADDRESS')),
+            '{account_name}' => Configuration::get('ACCOUNT_NAME'),
+            '{po_number}' => Configuration::get('PO_NUMBER'),
+            '{po_number_html}' => Tools::nl2br(Configuration::get('PO_NUMBER')),
         ];
     }
 
@@ -90,8 +90,8 @@ class Ps_Checkpayment extends PaymentModule
 
     public function uninstall()
     {
-        return Configuration::deleteByName('CHEQUE_NAME')
-            && Configuration::deleteByName('CHEQUE_ADDRESS')
+        return Configuration::deleteByName('ACCOUNT_NAME')
+            && Configuration::deleteByName('PO_NUMBER')
             && parent::uninstall()
         ;
     }
@@ -99,10 +99,10 @@ class Ps_Checkpayment extends PaymentModule
     private function _postValidation()
     {
         if (Tools::isSubmit('btnSubmit')) {
-            if (!Tools::getValue('CHEQUE_NAME')) {
-                $this->_postErrors[] = $this->trans('The "Payee" field is required.', [], 'Modules.Checkpayment.Admin');
-            } elseif (!Tools::getValue('CHEQUE_ADDRESS')) {
-                $this->_postErrors[] = $this->trans('The "Address" field is required.', [], 'Modules.Checkpayment.Admin');
+            if (!Tools::getValue('ACCOUNT_NAME')) {
+                $this->_postErrors[] = $this->trans('The "Account Name" field is required.', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
+            } elseif (!Tools::getValue('PO_NUMBER')) {
+                $this->_postErrors[] = $this->trans('The "PO Number Field" field is required.', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
             }
         }
     }
@@ -110,8 +110,8 @@ class Ps_Checkpayment extends PaymentModule
     private function _postProcess()
     {
         if (Tools::isSubmit('btnSubmit')) {
-            Configuration::updateValue('CHEQUE_NAME', Tools::getValue('CHEQUE_NAME'));
-            Configuration::updateValue('CHEQUE_ADDRESS', Tools::getValue('CHEQUE_ADDRESS'));
+            Configuration::updateValue('ACCOUNT_NAME', Tools::getValue('ACCOUNT_NAME'));
+            Configuration::updateValue('PO_NUMBER', Tools::getValue('PO_NUMBER'));
         }
         $this->_html .= $this->displayConfirmation($this->trans('Settings updated', [], 'Admin.Notifications.Success'));
     }
@@ -151,15 +151,40 @@ class Ps_Checkpayment extends PaymentModule
             return;
         }
 
+        // Allowed groups (IDs)
+        $allowedGroupIds = [4]; // e.g. "VIP", "B2B"
+
+        $customerId = (int) $this->context->customer->id;
+
+        // Not logged in? Hide it (optional rule)
+        if ($customerId <= 0) {
+            return;
+        }
+
+        // Customer group IDs (includes default + assigned groups)
+        $customerGroupIds = Customer::getGroupsStatic($customerId);
+
+        // If customer is in none of the allowed groups, hide payment option
+        if (!array_intersect($allowedGroupIds, $customerGroupIds)) {
+            return;
+        }
+
         $this->smarty->assign(
             $this->getTemplateVars()
         );
 
         $newOption = new PaymentOption();
         $newOption->setModuleName($this->name)
-            ->setCallToActionText($this->trans('Pay by Check', [], 'Modules.Checkpayment.Admin'))
+            ->setCallToActionText($this->trans('Pay on Account', [], 'Modules.Mc_pneutrolpayonaccount.Admin'))
             ->setAction($this->context->link->getModuleLink($this->name, 'validation', [], true))
-            ->setAdditionalInformation($this->fetch('module:ps_checkpayment/views/templates/front/payment_infos.tpl'));
+            ->setInputs([
+                [
+                    'type' => 'hidden',
+                    'name' => 'poNumber',
+                    'value' => ''
+                ],
+            ])
+            ->setAdditionalInformation($this->fetch('module:mc_pneutrolpayonaccount/views/templates/front/payment_infos.tpl'));
 
         return [$newOption];
     }
@@ -170,6 +195,32 @@ class Ps_Checkpayment extends PaymentModule
             return;
         }
 
+        $order = $params['order'] ?? null;
+        if (!$order || !($order instanceof Order)) {
+            return '';
+        }
+
+        // Only for orders paid with this module
+        if (($order->module ?? '') !== $this->name) {
+            return '';
+        }
+
+        $poNumber = '';
+
+        // Read the last customer message for this order and extract "PO Number: ..."
+        $messages = Message::getMessagesByOrderId((int) $order->id, true);
+        if (is_array($messages)) {
+            foreach ($messages as $message) {
+                $content = (string) ($message['message'] ?? '');
+                if (stripos($content, 'PO Number:') !== false) {
+                    $poNumber = trim((string) preg_replace('/^.*PO Number:\s*/i', '', $content));
+                }
+            }
+        }
+
+        $customerId = $params['order']->id_customer;
+        $row = $this->getCustomerCompanyRow($customerId);
+
         $rest_to_paid = $params['order']->getOrdersTotalPaid() - $params['order']->getTotalPaid();
 
         $this->smarty->assign([
@@ -178,14 +229,14 @@ class Ps_Checkpayment extends PaymentModule
                 (new Currency($params['order']->id_currency))->iso_code
             ),
             'shop_name' => $this->context->shop->name,
-            'checkName' => $this->checkName,
-            'checkAddress' => Tools::nl2br($this->address),
+            'accountName' => $row['company_name'],
+            'poNumber' =>  $poNumber !== '' ? $poNumber : '___________', //Tools::nl2br($this->poNumber)
             'status' => 'ok',
             'id_order' => $params['order']->id,
             'reference' => $params['order']->reference,
         ]);
 
-        return $this->fetch('module:ps_checkpayment/views/templates/hook/payment_return.tpl');
+        return $this->fetch('module:mc_pneutrolpayonaccount/views/templates/hook/payment_return.tpl');
     }
 
     public function checkCurrency($cart)
@@ -209,21 +260,21 @@ class Ps_Checkpayment extends PaymentModule
         $fields_form = [
             'form' => [
                 'legend' => [
-                    'title' => $this->trans('Contact details', [], 'Modules.Checkpayment.Admin'),
+                    'title' => $this->trans('Contact details', [], 'Modules.Mc_pneutrolpayonaccount.Admin'),
                     'icon' => 'icon-envelope',
                 ],
                 'input' => [
                     [
                         'type' => 'text',
-                        'label' => $this->trans('Payee (name)', [], 'Modules.Checkpayment.Admin'),
-                        'name' => 'CHEQUE_NAME',
+                        'label' => $this->trans('Account Name (name)', [], 'Modules.Mc_pneutrolpayonaccount.Admin'),
+                        'name' => 'ACCOUNT_NAME',
                         'required' => true,
                     ],
                     [
                         'type' => 'textarea',
-                        'label' => $this->trans('Address', [], 'Modules.Checkpayment.Admin'),
-                        'desc' => $this->trans('Address where the check should be sent to.', [], 'Modules.Checkpayment.Admin'),
-                        'name' => 'CHEQUE_ADDRESS',
+                        'label' => $this->trans('PO Number', [], 'Modules.Mc_pneutrolpayonaccount.Admin'),
+                        'desc' => $this->trans('PO Number where the check should be sent to.', [], 'Modules.Mc_pneutrolpayonaccount.Admin'),
+                        'name' => 'PO_NUMBER',
                         'required' => true,
                     ],
                 ],
@@ -250,8 +301,8 @@ class Ps_Checkpayment extends PaymentModule
     public function getConfigFieldsValues()
     {
         return [
-            'CHEQUE_NAME' => Tools::getValue('CHEQUE_NAME', Configuration::get('CHEQUE_NAME')),
-            'CHEQUE_ADDRESS' => Tools::getValue('CHEQUE_ADDRESS', Configuration::get('CHEQUE_ADDRESS')),
+            'ACCOUNT_NAME' => Tools::getValue('ACCOUNT_NAME', Configuration::get('ACCOUNT_NAME')),
+            'PO_NUMBER' => Tools::getValue('PO_NUMBER', Configuration::get('PO_NUMBER')),
         ];
     }
 
@@ -265,24 +316,47 @@ class Ps_Checkpayment extends PaymentModule
 
         $taxLabel = '';
         if ($this->context->country->display_tax_label) {
-            $taxLabel = $this->trans('(tax incl.)', [], 'Modules.Checkpayment.Admin');
+            $taxLabel = $this->trans('(tax incl.)', [], 'Modules.Mc_pneutrolpayonaccount.Admin');
         }
 
-        $checkOrder = Configuration::get('CHEQUE_NAME');
-        if (!$checkOrder) {
-            $checkOrder = '___________';
+        // Get current customer id from context
+        $customerId = $cart->id_customer;
+
+        // Get company name from the accounts
+        $row = $this->getCustomerCompanyRow($customerId);
+
+        $accountName = $row['company_name'];
+        if (!$accountName) {
+            $accountName = '___________';
         }
 
-        $checkAddress = Tools::nl2br(Configuration::get('CHEQUE_ADDRESS'));
-        if (!$checkAddress) {
-            $checkAddress = '___________';
+        $poNumber = trim((string) Tools::getValue('poNumber', ''));//Tools::nl2br(Configuration::get('CHEQUE_ADDRESS'));
+        if (!$poNumber) {
+            $poNumber = '___________';
         }
 
         return [
             'checkTotal' => $total,
             'checkTaxLabel' => $taxLabel,
-            'checkOrder' => $checkOrder,
-            'checkAddress' => $checkAddress,
+            'accountName' => $accountName,
+            'poNumber' => $poNumber,
         ];
+    }
+
+    private function getCustomerCompanyRow(int $idCustomer): ?array
+    {
+        $idShop = (int) ($this->context->shop->id ?? 0);
+        if ($idShop <= 0) {
+            $idShop = (int) Configuration::get('PS_SHOP_DEFAULT');
+        }
+
+        $sql = 'SELECT is_company, company_name, company_vat
+                FROM `' . _DB_PREFIX_ . 'pneutrolaccountholder_customer`
+                WHERE id_customer = ' . (int) $idCustomer . '
+                AND id_shop = ' . (int) $idShop;
+
+        $row = Db::getInstance()->getRow($sql);
+
+        return is_array($row) ? $row : null;
     }
 }

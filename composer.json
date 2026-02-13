@@ -1,11 +1,11 @@
 {
-  "name": "prestashop/ps_checkpayment",
-  "description": "PrestaShop module ps_checkpayment",
-  "homepage": "https://github.com/PrestaShop/ps_checkpayment",
+  "name": "prestashop/mc_pneutrolpayonaccount",
+  "description": "PrestaShop module mc_pneutrolpayonaccount",
+  "homepage": "https://github.com/PrestaShop/mc_pneutrolpayonaccount",
   "license": "AFL-3.0",
   "authors": [
     {
-      "name": "PrestaShop SA",
+      "name": "PrestaShop SA| Extended by - EI",
       "email": "contact@prestashop.com"
     }
   ],
@@ -23,7 +23,7 @@
   },
   "autoload": {
     "classmap": [
-      "ps_checkpayment.php",
+      "mc_pneutrolpayonaccount.php",
       "controllers/"
     ]
   },
